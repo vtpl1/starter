@@ -4,7 +4,7 @@
 import { Box, Button } from "@chakra-ui/react";
 import { useSize } from "@chakra-ui/react-use-size";
 import { ZoomTransform, axisBottom, extent, scaleTime, select, zoom } from "d3";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const initialData = [
   {
@@ -244,6 +244,16 @@ type Margin = {
   left: number;
   right: number;
 };
+const margin: Margin = {
+  top: 20,
+  bottom: 20,
+  left: 20,
+  right: 20,
+};
+const theme = {
+  pixelsPerTick: 100,
+};
+
 function TimeLine() {
   const targetRef = useRef<HTMLDivElement>(null);
   const [data, setData] = useState(initialData);
@@ -251,7 +261,70 @@ function TimeLine() {
     width: 10,
     height: 10,
   };
-  const addData = () => {
+  const { innerWidth, innerHeight } = useMemo(() => {
+    return {
+      innerWidth: Math.floor(width - margin.left - margin.right),
+      innerHeight: Math.floor(height - margin.top - margin.bottom),
+    };
+  }, [width, height]);
+
+  const xScale = useMemo(() => {
+    return scaleTime()
+      .domain(extent(data.map((d) => d.date)) as [Date, Date])
+      .rangeRound([margin.left, innerWidth])
+      .nice();
+  }, [data, innerWidth]);
+  const numberOfTicksTarget = useMemo(() => {
+    Math.max(1, Math.floor(innerWidth / theme.pixelsPerTick));
+  }, [innerWidth]);
+
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const selection = select(svgRef.current);
+  useEffect(() => {
+    // const selection = select(svgRef.current);
+    selection.call(
+      zoom()
+        .scaleExtent([1 / 16, 4])
+        .translateExtent([
+          [margin.left, margin.top],
+          [innerWidth, innerHeight],
+        ])
+        .on("zoom", (event: { transform: ZoomTransform }) => {
+          const { transform } = event;
+          const newXScale = transform.rescaleX(xScale).nice();
+          selection
+            .select<SVGGElement>("g.x-axis")
+            .call(
+              axisBottom(newXScale)
+                .ticks(numberOfTicksTarget)
+                .tickSize(-innerHeight)
+            );
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        }) as any
+    );
+    return () => {
+      selection.on("zoom", null);
+    };
+  }, [innerWidth, innerHeight, selection, xScale, numberOfTicksTarget]);
+
+  useEffect(() => {
+    const selection = select(svgRef.current);
+
+    selection
+      .selectAll("g.x-axis")
+      .data([null])
+      .join("g")
+      .attr("class", "x-axis")
+      .attr("transform", `translate(0, ${innerHeight})`)
+      .call(
+        axisBottom(xScale)
+          .ticks(numberOfTicksTarget)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .tickSize(-innerHeight) as any
+      );
+  }, [xScale, numberOfTicksTarget, innerHeight]);
+
+  const addData = useCallback(() => {
     if (data === undefined) return;
     const result = new Date(
       Math.max(...data.map((d) => new Date(d.date).getTime()))
@@ -265,110 +338,24 @@ function TimeLine() {
       type: randomType,
     };
     setData([...data, dataToAdd]);
-  };
+  }, [data]);
 
-  const removeData = () => {
+  const removeData = useCallback(() => {
     if (data.length === 0) {
       return;
     }
     setData([...data.slice(0, data.length - 1)]);
-  };
-  const margin: Margin = {
-    top: 20,
-    bottom: 20,
-    left: 20,
-    right: 20,
-  };
-  const svgRef = useRef<SVGSVGElement | null>(null);
-  const theme = {
-    pixelsPerTick: 100,
-  };
-
-  useEffect(() => {
-    console.log(data);
-    const innerDimensions = {
-      width: Math.floor(width - margin.left - margin.right),
-      height: Math.floor(height - margin.top - margin.bottom),
-    };
-
-    const h = innerDimensions.height;
-    const w = innerDimensions.width;
-    const numberOfTicksTarget = Math.max(
-      1,
-      Math.floor(w / theme.pixelsPerTick)
-    );
-    console.log(numberOfTicksTarget);
-    const xScale = scaleTime()
-      .domain(extent(data.map((d) => d.date)) as [Date, Date])
-      .rangeRound([margin.left, innerDimensions.width])
-      .nice();
-    const selection = select(svgRef.current);
-    selection
-      .selectAll("g.x-axis")
-      .data([null])
-      .join("g")
-      .attr("class", "x-axis")
-      .attr("transform", `translate(0, ${h})`)
-      .call(axisBottom(xScale).ticks(numberOfTicksTarget) as any);
-
-    selection
-      .selectAll("g.x-grid")
-      .data([null])
-      .join("g")
-      .attr("class", "x-grid")
-      .attr("transform", `translate(0, ${h})`)
-      .call(
-        axisBottom(xScale)
-          .ticks(numberOfTicksTarget)
-          .tickSize(-h)
-          .tickFormat(() => "") as any
-      )
-      .attr("opacity", 0.3);
-
-    const zoomed = (event: { transform: ZoomTransform }) => {
-      const { transform } = event;
-
-      const newXScale = transform.rescaleX(xScale).nice();
-      selection
-        .select<SVGGElement>("g.x-axis")
-        .call(axisBottom(newXScale).ticks(numberOfTicksTarget));
-
-      selection.select<SVGGElement>("g.x-grid").call(
-        axisBottom(newXScale)
-          .ticks(numberOfTicksTarget)
-          .tickSize(-h)
-          .tickFormat(() => "")
-          .tickSizeOuter(0)
-      );
-    };
-
-    const zoomBehavior: d3.ZoomBehavior<any, unknown> = zoom()
-      .scaleExtent([1, 10])
-      .translateExtent([
-        [margin.left, margin.top],
-        [width - margin.right, height - margin.bottom],
-      ])
-      .on("zoom", zoomed);
-
-    select(svgRef.current).call(zoomBehavior).on("dblclick.zoom", null);
-  }, [
-    data,
-    width,
-    height,
-    margin.left,
-    margin.right,
-    margin.top,
-    margin.bottom,
-  ]);
+  }, [data]);
   return (
-    <Box ref={targetRef} m={0} p={0} height={"100%"} background="red.100">
+    <Box ref={targetRef} m={0} p={0} height={"100%"}>
       <svg
         ref={svgRef}
         width={"100%"}
         height={"100%"}
         style={{
           border: "2px solid orange",
-        }}></svg>
+        }}
+      />
       <Button onClick={addData}>Add Data</Button>
       <Button onClick={removeData}>Remove Data</Button>
     </Box>
