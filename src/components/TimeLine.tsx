@@ -5,6 +5,7 @@ import { Box, Button } from "@chakra-ui/react";
 import { useSize } from "@chakra-ui/react-use-size";
 import { ZoomTransform, axisBottom, extent, scaleTime, select, zoom } from "d3";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import AxisBottom from "./AxisBottom";
 
 const initialData = [
   {
@@ -291,6 +292,7 @@ function TimeLine() {
         ])
         .on("zoom", (event: { transform: ZoomTransform }) => {
           const { transform } = event;
+          console.log(transform);
           const newXScale = transform.rescaleX(xScale).nice();
           selection
             .select<SVGGElement>("g.x-axis")
@@ -302,6 +304,7 @@ function TimeLine() {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
         }) as any
     );
+    selection.on("dblclick.zoom", null);
     return () => {
       selection.on("zoom", null);
     };
@@ -310,18 +313,18 @@ function TimeLine() {
   useEffect(() => {
     const selection = select(svgRef.current);
 
-    selection
-      .selectAll("g.x-axis")
-      .data([null])
-      .join("g")
-      .attr("class", "x-axis")
-      .attr("transform", `translate(0, ${innerHeight})`)
-      .call(
-        axisBottom(xScale)
-          .ticks(numberOfTicksTarget)
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .tickSize(-innerHeight) as any
-      );
+    // selection
+    //   .selectAll("g.x-axis")
+    //   .data([null])
+    //   .join("g")
+    //   .attr("class", "x-axis")
+    //   .attr("transform", `translate(0, ${innerHeight})`)
+    //   .call(
+    //     axisBottom(xScale)
+    //       .ticks(numberOfTicksTarget)
+    //       // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    //       .tickSize(-innerHeight) as any
+    //   );
   }, [xScale, numberOfTicksTarget, innerHeight]);
 
   const addData = useCallback(() => {
@@ -354,8 +357,14 @@ function TimeLine() {
         height={"100%"}
         style={{
           border: "2px solid orange",
-        }}
-      />
+        }}>
+        <AxisBottom
+          xScale={xScale}
+          innerHeight={innerHeight}
+          innerWidth={innerWidth}
+          marginLeft={margin.left}
+        />
+      </svg>
       <Button onClick={addData}>Add Data</Button>
       <Button onClick={removeData}>Remove Data</Button>
     </Box>
