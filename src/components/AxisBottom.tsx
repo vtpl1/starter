@@ -39,9 +39,9 @@
 
 // export default AxisBottom;
 
-import { useMemo } from "react";
-import { ScaleTime } from "d3";
 import { useColorModeValue, useTheme } from "@chakra-ui/react";
+import { ScaleTime } from "d3";
+import { useMemo } from "react";
 
 interface XAxisProps {
   xScale: ScaleTime<number, number>;
@@ -66,7 +66,7 @@ function AxisBottom({
   };
   const numberOfTicksTarget = useMemo(() => {
     return Math.max(1, Math.floor(innerWidth / themes.pixelsPerTick));
-  }, [innerWidth]);
+  }, [innerWidth, themes.pixelsPerTick]);
 
   return (
     <>

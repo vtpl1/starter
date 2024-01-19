@@ -1,9 +1,11 @@
 // https://vizhub.com/curran/32dfc8d2393844c6a5b9d199d9a35946?f90a6c7a=ta
 // https://www.youtube.com/watch?v=5bPF-lTvs5E&list=RDCMUCSwd_9jyX4YtDYm9p9MxQqw&index=14
 // https://observablehq.com/@d3/d3-scaletime
+// https://codesandbox.io/p/sandbox/quirky-yalow-3y6q4?file=%2Fsrc%2FcustomChart%2FLineChart.jsx%3A28%2C62
+
 import { Box, Button } from "@chakra-ui/react";
 import { useSize } from "@chakra-ui/react-use-size";
-import { ZoomTransform, axisBottom, extent, scaleTime, select, zoom } from "d3";
+import { ZoomTransform, max, min, scaleTime, select, zoom } from "d3";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AxisBottom from "./AxisBottom";
 
@@ -268,64 +270,64 @@ function TimeLine() {
       innerHeight: Math.floor(height - margin.top - margin.bottom),
     };
   }, [width, height]);
+  const [xDomainMin, setXDomainMin] = useState<Date>(new Date());
+  const [xDomainMax, setXDomainMax] = useState<Date>(new Date());
+  useEffect(() => {
+    if (data) {
+      const xMin = min(data.map((d) => d.date));
+      const xMax = max(data.map((d) => d.date));
+      if (xMin && xMax) {
+        setXDomainMin(xMin);
+        setXDomainMax(xMax);
+      }
+    }
+    // extent(data.map((d) => d.date)) as [Date, Date]
+  }, [data]);
 
-  const xScale = useMemo(() => {
+  const xScaleOriginal = useMemo(() => {
     return scaleTime()
-      .domain(extent(data.map((d) => d.date)) as [Date, Date])
+      .domain([min(data.map((d) => d.date))!, max(data.map((d) => d.date))!])
       .rangeRound([margin.left, innerWidth])
       .nice();
   }, [data, innerWidth]);
+
+  const xScale = useMemo(() => {
+    return scaleTime()
+      .domain([xDomainMin, xDomainMax])
+      .rangeRound([margin.left, innerWidth])
+      .nice();
+  }, [xDomainMin, xDomainMax, innerWidth]);
+
   const numberOfTicksTarget = useMemo(() => {
     Math.max(1, Math.floor(innerWidth / theme.pixelsPerTick));
   }, [innerWidth]);
 
   const svgRef = useRef<SVGSVGElement | null>(null);
-  const selection = select(svgRef.current);
+
   useEffect(() => {
-    // const selection = select(svgRef.current);
+    const selection = select(svgRef.current);
     selection.call(
       zoom()
-        .scaleExtent([1 / 16, 4])
+        .scaleExtent([1 / 2, 2])
         .translateExtent([
           [margin.left, margin.top],
           [innerWidth, innerHeight],
         ])
         .on("zoom", (event: { transform: ZoomTransform }) => {
           const { transform } = event;
-          console.log(transform);
-          const newXScale = transform.rescaleX(xScale).nice();
-          selection
-            .select<SVGGElement>("g.x-axis")
-            .call(
-              axisBottom(newXScale)
-                .ticks(numberOfTicksTarget)
-                .tickSize(-innerHeight)
-            );
+          // console.log(transform);
+          const newXScale = transform.rescaleX(xScaleOriginal).nice();
+          const d = newXScale.domain();
+          console.log(d);
+          setXDomainMin(d[0]);
+          setXDomainMax(d[1]);
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
         }) as any
     );
-    selection.on("dblclick.zoom", null);
     return () => {
       selection.on("zoom", null);
     };
-  }, [innerWidth, innerHeight, selection, xScale, numberOfTicksTarget]);
-
-  useEffect(() => {
-    const selection = select(svgRef.current);
-
-    // selection
-    //   .selectAll("g.x-axis")
-    //   .data([null])
-    //   .join("g")
-    //   .attr("class", "x-axis")
-    //   .attr("transform", `translate(0, ${innerHeight})`)
-    //   .call(
-    //     axisBottom(xScale)
-    //       .ticks(numberOfTicksTarget)
-    //       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    //       .tickSize(-innerHeight) as any
-    //   );
-  }, [xScale, numberOfTicksTarget, innerHeight]);
+  }, [innerWidth, innerHeight, xScaleOriginal, numberOfTicksTarget]);
 
   const addData = useCallback(() => {
     if (data === undefined) return;
